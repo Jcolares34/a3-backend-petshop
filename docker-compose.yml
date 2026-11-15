@@ -1,19 +1,18 @@
-name: sistemas_distribuidos
+name: a3_petshop
 
 services:
   db:
     image: postgres:16
-    container_name: aula_postgres_db
+    container_name: petshop_db
     restart: always
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: minhasenha
-      POSTGRES_DB: meubanco
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "55432:5432"
+      - "55433:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d:ro
+      - petshop_data:/var/lib/postgresql/data
 
 volumes:
-  pgdata:
+  petshop_data:

@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id       String   @id @db.VarChar(128)
+  nome     String   @db.VarChar(100)
+  email    String   @unique @db.VarChar(255)
+  criadoEm DateTime @default(now()) @map("criado_em")
+  tutores  Tutor[]
+
+  @@map("usuarios")
+}
+
+model Tutor {
+  id        Int      @id @default(autoincrement())
+  nome      String   @db.VarChar(100)
+  cpf       String   @db.Char(11)
+  telefone  String   @db.VarChar(15)
+  email     String?  @db.VarChar(255)
+  usuarioId String   @map("usuario_id") @db.VarChar(128)
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
+  pets      Pet[]
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  @@unique([usuarioId, cpf])
+  @@map("tutores")
+}
+
+model Pet {
+  id             Int        @id @default(autoincrement())
+  nome           String     @db.VarChar(100)
+  especie        String     @db.VarChar(20)
+  raca           String?    @db.VarChar(100)
+  dataNascimento DateTime?  @map("data_nascimento") @db.Date
+  peso           Decimal?   @db.Decimal(5, 2)
+  tutorId        Int        @map("tutor_id")
+  tutor          Tutor      @relation(fields: [tutorId], references: [id])
+  consultas      Consulta[]
+  criadoEm       DateTime   @default(now()) @map("criado_em")
+
+  @@map("pets")
+}
+
+model Consulta {
+  id          Int      @id @default(autoincrement())
+  dataHora    DateTime @map("data_hora")
+  motivo      String   @db.VarChar(255)
+  diagnostico String?  @db.Text
+  valor       Decimal  @db.Decimal(10, 2)
+  status      String   @default("agendada") @db.VarChar(20)
+  petId       Int      @map("pet_id")
+  pet         Pet      @relation(fields: [petId], references: [id])
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  @@map("consultas")
+}
