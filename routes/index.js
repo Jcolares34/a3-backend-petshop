@@ -1,14 +1,10 @@
 import express from "express";
-
-import cors from "cors";
-import { corsOptions } from "../utils/index.js";
+import { version } from "../versao.js";
 
 const router = express.Router();
 
-/* GET home page. */
-//usando Cors para dar acesso
-router.get("/", cors(corsOptions), function (req, res, next) {
-  res.render("index", { title: "Express" });
+router.get("/", (req, res) => {
+  res.json({ api: "Petshop A3", versao: version });
 });
 
 export default router;
