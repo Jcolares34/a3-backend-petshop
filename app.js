@@ -3,6 +3,7 @@ import logger from "morgan";
 import cors from "cors";
 
 import indexRouter from "./routes/index.js";
+import authRouter from "./routes/auth.js";
 import { versionMiddleware } from "./utils/index.js";
 
 const app = express();
@@ -13,6 +14,7 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(versionMiddleware);
 
 app.use("/", indexRouter);
+app.use("/auth", authRouter);
 
 // Rota inexistente
 app.use((req, res) => {
