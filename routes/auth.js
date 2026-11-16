@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   deleteUser,
+  updateProfile,
 } from "firebase/auth";
 import { firebaseAuth } from "../tools/firebase.js";
 import prisma from "../utils/prisma.js";
@@ -51,6 +52,7 @@ authRouter.post("/cadastro", async (req, res, next) => {
 
   // Se não conseguir gravar no banco, desfaz o cadastro no Firebase
   try {
+    await updateProfile(credencial.user, { displayName: nome.trim() });
     const usuario = await prisma.usuario.create({
       data: { id: credencial.user.uid, nome: nome.trim(), email: credencial.user.email },
     });
@@ -72,7 +74,16 @@ authRouter.post("/login", async (req, res, next) => {
   }
   try {
     const credencial = await signInWithEmailAndPassword(firebaseAuth, email.trim(), senha);
-    const { jwt } = await createToken({ sub: credencial.user.uid, email: credencial.user.email });
+    const { uid, email: emailFirebase, displayName } = credencial.user;
+
+    // Garante a linha em usuarios (ex.: usuário criado em outro banco ou no console do Firebase)
+    await prisma.usuario.upsert({
+      where: { id: uid },
+      update: {},
+      create: { id: uid, nome: displayName || emailFirebase.split("@")[0], email: emailFirebase },
+    });
+
+    const { jwt } = await createToken({ sub: uid, email: emailFirebase });
     res.json({ token: jwt, expiraEm: validadeToken });
   } catch (error) {
     if (["auth/invalid-credential", "auth/invalid-email", "auth/user-not-found", "auth/wrong-password"].includes(error.code)) {
