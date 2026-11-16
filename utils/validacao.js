@@ -131,4 +131,75 @@ const regrasPet = {
 
 const validarPet = (corpo, parcial = false) => validarCampos(corpo || {}, regrasPet, parcial);
 
-export { lerId, ehTexto, validarTexto, validarCampos, validarTutor, especies, validarPet };
+const statusConsulta = ["agendada", "realizada", "cancelada"];
+
+// Data e hora ISO com fuso, ex.: 2026-11-20T14:00:00-03:00 (ou ...Z)
+const formatoDataHora = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+// Regras da consulta
+const regrasConsulta = {
+  dataHora: {
+    obrigatorio: true,
+    validar: (v) => {
+      const data = ehTexto(v) && formatoDataHora.test(v.trim()) ? new Date(v.trim()) : null;
+      return data && !isNaN(data)
+        ? { valor: data }
+        : { erro: "dataHora deve estar no formato ISO com fuso, ex.: 2026-11-20T14:00:00-03:00" };
+    },
+  },
+  motivo: {
+    obrigatorio: true,
+    validar: (v) => {
+      const erro = validarTexto(v, "motivo", 1, 255);
+      return erro ? { erro } : { valor: v.trim() };
+    },
+  },
+  diagnostico: {
+    obrigatorio: false,
+    validar: (v) => {
+      if (v === null || v === "") return { valor: null };
+      return ehTexto(v) ? { valor: v.trim() } : { erro: "diagnostico deve ser um texto" };
+    },
+  },
+  valor: {
+    obrigatorio: true,
+    validar: (v) =>
+      typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 100000000
+        ? { valor: v }
+        : { erro: "valor deve ser um número maior ou igual a 0" },
+  },
+  status: {
+    obrigatorio: false,
+    validar: (v) =>
+      ehTexto(v) && statusConsulta.includes(v.trim().toLowerCase())
+        ? { valor: v.trim().toLowerCase() }
+        : { erro: `status deve ser: ${statusConsulta.join(", ")}` },
+  },
+  petId: {
+    obrigatorio: true,
+    validar: (v) =>
+      Number.isSafeInteger(v) && v > 0 ? { valor: v } : { erro: "petId deve ser um número inteiro" },
+  },
+};
+
+const validarConsulta = (corpo, parcial = false) => validarCampos(corpo || {}, regrasConsulta, parcial);
+
+// Data AAAA-MM-DD válida, ou null
+const lerData = (v) => {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const data = new Date(`${v}T00:00:00Z`);
+  return isNaN(data) || data.toISOString().slice(0, 10) !== v ? null : v;
+};
+
+export {
+  lerId,
+  ehTexto,
+  validarTexto,
+  validarCampos,
+  validarTutor,
+  especies,
+  validarPet,
+  statusConsulta,
+  validarConsulta,
+  lerData,
+};

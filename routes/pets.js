@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "../utils/prisma.js";
 import { lerId, especies, validarPet } from "../utils/validacao.js";
+import { formatarConsulta, camposConsulta } from "./consultas.js";
 
 const petsRouter = express.Router();
 
@@ -80,6 +81,25 @@ petsRouter.get("/:id", async (req, res, next) => {
     });
     if (!pet) return res.status(404).json({ erro: "Pet não encontrado" });
     res.json(formatarPet(pet));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Histórico de consultas do pet, da mais recente para a mais antiga
+petsRouter.get("/:id/consultas", async (req, res, next) => {
+  const id = lerId(req);
+  if (id === null) return res.status(400).json({ erro: "id inválido" });
+  try {
+    if (!(await buscarPet(id, req.usuario.id, { id: true }))) {
+      return res.status(404).json({ erro: "Pet não encontrado" });
+    }
+    const consultas = await prisma.consulta.findMany({
+      where: { petId: id },
+      select: camposConsulta,
+      orderBy: { dataHora: "desc" },
+    });
+    res.json(consultas.map(formatarConsulta));
   } catch (error) {
     next(error);
   }
