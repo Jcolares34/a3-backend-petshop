@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "../utils/prisma.js";
 import { lerId, validarTutor } from "../utils/validacao.js";
+import { formatarPet, camposPet } from "./pets.js";
 
 const tutoresRouter = express.Router();
 
@@ -55,6 +56,21 @@ tutoresRouter.get("/:id", async (req, res, next) => {
     const tutor = await buscarTutor(id, req.usuario.id);
     if (!tutor) return res.status(404).json({ erro: "Tutor não encontrado" });
     res.json(tutor);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Pets de um tutor do usuário
+tutoresRouter.get("/:id/pets", async (req, res, next) => {
+  const id = lerId(req);
+  if (id === null) return res.status(400).json({ erro: "id inválido" });
+  try {
+    if (!(await buscarTutor(id, req.usuario.id))) {
+      return res.status(404).json({ erro: "Tutor não encontrado" });
+    }
+    const pets = await prisma.pet.findMany({ where: { tutorId: id }, select: camposPet, orderBy: { nome: "asc" } });
+    res.json(pets.map(formatarPet));
   } catch (error) {
     next(error);
   }

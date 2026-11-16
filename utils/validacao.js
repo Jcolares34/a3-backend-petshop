@@ -72,4 +72,63 @@ const regrasTutor = {
 
 const validarTutor = (corpo, parcial = false) => validarCampos(corpo || {}, regrasTutor, parcial);
 
-export { lerId, ehTexto, validarTexto, validarCampos, validarTutor };
+const especies = ["cachorro", "gato", "ave", "roedor", "outro"];
+
+// Data de hoje no horário de Brasília, no formato AAAA-MM-DD
+const hojeEmBrasilia = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+
+// Regras do pet
+const regrasPet = {
+  nome: {
+    obrigatorio: true,
+    validar: (v) => {
+      const erro = validarTexto(v, "nome", 1, 100);
+      return erro ? { erro } : { valor: v.trim() };
+    },
+  },
+  especie: {
+    obrigatorio: true,
+    validar: (v) =>
+      ehTexto(v) && especies.includes(v.trim().toLowerCase())
+        ? { valor: v.trim().toLowerCase() }
+        : { erro: `especie deve ser: ${especies.join(", ")}` },
+  },
+  raca: {
+    obrigatorio: false,
+    validar: (v) => {
+      if (v === null || v === "") return { valor: null };
+      const erro = validarTexto(v, "raca", 1, 100);
+      return erro ? { erro } : { valor: v.trim() };
+    },
+  },
+  dataNascimento: {
+    obrigatorio: false,
+    validar: (v) => {
+      if (v === null || v === "") return { valor: null };
+      const data = ehTexto(v) && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00Z`) : null;
+      if (!data || isNaN(data) || data.toISOString().slice(0, 10) !== v) {
+        return { erro: "dataNascimento deve ser uma data válida no formato AAAA-MM-DD" };
+      }
+      if (v > hojeEmBrasilia()) return { erro: "dataNascimento não pode ser no futuro" };
+      return { valor: data };
+    },
+  },
+  peso: {
+    obrigatorio: false,
+    validar: (v) => {
+      if (v === null) return { valor: null };
+      return typeof v === "number" && v > 0 && v <= 999.99
+        ? { valor: v }
+        : { erro: "peso deve ser um número maior que 0 e até 999.99" };
+    },
+  },
+  tutorId: {
+    obrigatorio: true,
+    validar: (v) =>
+      Number.isSafeInteger(v) && v > 0 ? { valor: v } : { erro: "tutorId deve ser um número inteiro" },
+  },
+};
+
+const validarPet = (corpo, parcial = false) => validarCampos(corpo || {}, regrasPet, parcial);
+
+export { lerId, ehTexto, validarTexto, validarCampos, validarTutor, especies, validarPet };
