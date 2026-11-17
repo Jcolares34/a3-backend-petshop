@@ -27,5 +27,8 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "prisma": {
+    "seed": "node --env-file=.env prisma/seed.js"
   }
 }
