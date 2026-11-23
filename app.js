@@ -2,12 +2,8 @@ import express from "express";
 import logger from "morgan";
 import cors from "cors";
 
-import indexRouter from "./routes/index.js";
-import authRouter from "./routes/auth.js";
-import tutoresRouter from "./routes/tutores.js";
-import petsRouter from "./routes/pets.js";
-import consultasRouter from "./routes/consultas.js";
-import { tokenMiddleware, versionMiddleware } from "./utils/index.js";
+import { setRotas } from "./routes/setup.js";
+import { versionMiddleware } from "./utils/index.js";
 
 const app = express();
 
@@ -16,11 +12,7 @@ app.use(express.json());
 app.use(cors({ origin: true, credentials: true }));
 app.use(versionMiddleware);
 
-app.use("/", indexRouter);
-app.use("/auth", authRouter);
-app.use("/tutores", tokenMiddleware, tutoresRouter);
-app.use("/pets", tokenMiddleware, petsRouter);
-app.use("/consultas", tokenMiddleware, consultasRouter);
+setRotas(app);
 
 // Rota inexistente
 app.use((req, res) => {
