@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { lerId, ehId, especies, validarPet } from "../utils/validacao.js";
+import { montarUrl } from "../utils/links.js";
 import { formatarConsulta, camposConsulta } from "./consultasController.js";
 
 // Campos devolvidos nas respostas
@@ -12,14 +13,21 @@ const camposPet = {
   peso: true,
   tutorId: true,
   criadoEm: true,
+  tutor: { select: { id: true, nome: true } },
 };
 
-// Peso como número e data de nascimento como AAAA-MM-DD
-const formatarPet = (pet) => ({
-  ...pet,
-  peso: pet.peso === null ? null : Number(pet.peso),
-  dataNascimento: pet.dataNascimento ? pet.dataNascimento.toISOString().slice(0, 10) : null,
-});
+// Peso como número, data de nascimento como AAAA-MM-DD e as URLs do pet, do tutor e das consultas
+const formatarPet = (pet, req) => {
+  const { tutor, ...dados } = pet;
+  return {
+    ...dados,
+    peso: pet.peso === null ? null : Number(pet.peso),
+    dataNascimento: pet.dataNascimento ? pet.dataNascimento.toISOString().slice(0, 10) : null,
+    url: montarUrl(req, `/pets/${pet.id}`),
+    tutor: { ...tutor, url: montarUrl(req, `/tutores/${pet.tutorId}`) },
+    urlConsultas: montarUrl(req, `/pets/${pet.id}/consultas`),
+  };
+};
 
 // O pet é do usuário quando o tutor dele é do usuário
 const petDoUsuario = (id, usuarioId, select = camposPet) =>
@@ -46,7 +54,7 @@ const listarPets = async (req, res, next) => {
   }
   try {
     const pets = await prisma.pet.findMany({ where, select: camposPet, orderBy: { nome: "asc" } });
-    res.json(pets.map(formatarPet));
+    res.json(pets.map((pet) => formatarPet(pet, req)));
   } catch (error) {
     next(error);
   }
@@ -61,23 +69,20 @@ const criarPet = async (req, res, next) => {
       return res.status(404).json({ erro: "Tutor não encontrado" });
     }
     const pet = await prisma.pet.create({ data: dados, select: camposPet });
-    res.status(201).json(formatarPet(pet));
+    res.status(201).json(formatarPet(pet, req));
   } catch (error) {
     next(error);
   }
 };
 
-// Busca um pet, com o nome do tutor
+// Busca um pet
 const buscarPet = async (req, res, next) => {
   const id = lerId(req);
   if (id === null) return res.status(400).json({ erro: "id inválido" });
   try {
-    const pet = await petDoUsuario(id, req.usuario.id, {
-      ...camposPet,
-      tutor: { select: { id: true, nome: true } },
-    });
+    const pet = await petDoUsuario(id, req.usuario.id);
     if (!pet) return res.status(404).json({ erro: "Pet não encontrado" });
-    res.json(formatarPet(pet));
+    res.json(formatarPet(pet, req));
   } catch (error) {
     next(error);
   }
@@ -116,7 +121,7 @@ const alterarPet = async (req, res, next) => {
       return res.status(404).json({ erro: "Tutor não encontrado" });
     }
     const pet = await prisma.pet.update({ where: { id }, data: dados, select: camposPet });
-    res.json(formatarPet(pet));
+    res.json(formatarPet(pet, req));
   } catch (error) {
     next(error);
   }

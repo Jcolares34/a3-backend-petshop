@@ -67,7 +67,7 @@ const listarPetsDoTutor = async (req, res, next) => {
       return res.status(404).json({ erro: "Tutor não encontrado" });
     }
     const pets = await prisma.pet.findMany({ where: { tutorId: id }, select: camposPet, orderBy: { nome: "asc" } });
-    res.json(pets.map(formatarPet));
+    res.json(pets.map((pet) => formatarPet(pet, req)));
   } catch (error) {
     next(error);
   }
