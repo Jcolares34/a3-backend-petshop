@@ -1,10 +1,15 @@
-// Número do :id da rota, ou null se não for um inteiro positivo
-const lerId = (req) => {
-  const texto = String(req.params.id);
-  if (!/^\d+$/.test(texto)) return null;
-  const id = Number(texto);
-  return Number.isSafeInteger(id) && id > 0 ? id : null;
-};
+// Ids têm 20 caracteres do alfabeto do nanoid (letras, números, _ e -)
+const formatoId = /^[A-Za-z0-9_-]{20}$/;
+const ehId = (valor) => typeof valor === "string" && formatoId.test(valor);
+
+// O :id da rota, ou null se não estiver no formato
+const lerId = (req) => (ehId(req.params.id) ? req.params.id : null);
+
+// Regra para tutorId e petId no corpo
+const regraId = (campo) => ({
+  obrigatorio: true,
+  validar: (v) => (ehId(v) ? { valor: v } : { erro: `${campo} inválido (deve ter 20 caracteres)` }),
+});
 
 const ehTexto = (valor) => typeof valor === "string";
 
@@ -122,11 +127,7 @@ const regrasPet = {
         : { erro: "peso deve ser um número maior que 0 e até 999.99" };
     },
   },
-  tutorId: {
-    obrigatorio: true,
-    validar: (v) =>
-      Number.isSafeInteger(v) && v > 0 ? { valor: v } : { erro: "tutorId deve ser um número inteiro" },
-  },
+  tutorId: regraId("tutorId"),
 };
 
 const validarPet = (corpo, parcial = false) => validarCampos(corpo || {}, regrasPet, parcial);
@@ -175,11 +176,7 @@ const regrasConsulta = {
         ? { valor: v.trim().toLowerCase() }
         : { erro: `status deve ser: ${statusConsulta.join(", ")}` },
   },
-  petId: {
-    obrigatorio: true,
-    validar: (v) =>
-      Number.isSafeInteger(v) && v > 0 ? { valor: v } : { erro: "petId deve ser um número inteiro" },
-  },
+  petId: regraId("petId"),
 };
 
 const validarConsulta = (corpo, parcial = false) => validarCampos(corpo || {}, regrasConsulta, parcial);
@@ -193,6 +190,7 @@ const lerData = (v) => {
 
 export {
   lerId,
+  ehId,
   ehTexto,
   validarTexto,
   validarCampos,

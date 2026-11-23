@@ -28,7 +28,7 @@ const criarTutor = async (req, res, next) => {
   const { erro, dados } = validarTutor(req.body);
   if (erro) return res.status(400).json({ erro });
   try {
-    // Confere o CPF antes, para não gastar um id com um INSERT que falharia
+    // Confere o CPF antes para responder 409 com mensagem clara
     const repetido = await prisma.tutor.findFirst({
       where: { usuarioId: req.usuario.id, cpf: dados.cpf },
       select: { id: true },

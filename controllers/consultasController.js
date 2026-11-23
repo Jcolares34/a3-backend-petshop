@@ -1,5 +1,5 @@
 import prisma from "../utils/prisma.js";
-import { lerId, lerData, statusConsulta, validarConsulta } from "../utils/validacao.js";
+import { lerId, ehId, lerData, statusConsulta, validarConsulta } from "../utils/validacao.js";
 
 // Campos devolvidos nas respostas
 const camposConsulta = {
@@ -38,10 +38,10 @@ const listarConsultas = async (req, res, next) => {
     where.status = status.trim().toLowerCase();
   }
   if (petId !== undefined) {
-    if (!/^\d+$/.test(String(petId)) || Number(petId) <= 0) {
-      return res.status(400).json({ erro: "petId deve ser um número inteiro" });
+    if (!ehId(petId)) {
+      return res.status(400).json({ erro: "petId inválido (deve ter 20 caracteres)" });
     }
-    where.petId = Number(petId);
+    where.petId = petId;
   }
   if (data !== undefined) {
     const dia = lerData(data);

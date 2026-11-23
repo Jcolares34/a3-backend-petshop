@@ -1,5 +1,5 @@
 import prisma from "../utils/prisma.js";
-import { lerId, especies, validarPet } from "../utils/validacao.js";
+import { lerId, ehId, especies, validarPet } from "../utils/validacao.js";
 import { formatarConsulta, camposConsulta } from "./consultasController.js";
 
 // Campos devolvidos nas respostas
@@ -39,10 +39,10 @@ const listarPets = async (req, res, next) => {
     where.especie = especie.trim().toLowerCase();
   }
   if (tutorId !== undefined) {
-    if (!/^\d+$/.test(String(tutorId)) || Number(tutorId) <= 0) {
-      return res.status(400).json({ erro: "tutorId deve ser um número inteiro" });
+    if (!ehId(tutorId)) {
+      return res.status(400).json({ erro: "tutorId inválido (deve ter 20 caracteres)" });
     }
-    where.tutorId = Number(tutorId);
+    where.tutorId = tutorId;
   }
   try {
     const pets = await prisma.pet.findMany({ where, select: camposPet, orderBy: { nome: "asc" } });
