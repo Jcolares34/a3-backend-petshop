@@ -18,7 +18,7 @@ model Usuario {
 }
 
 model Tutor {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(nanoid(20)) @db.VarChar(20)
   nome      String   @db.VarChar(100)
   cpf       String   @db.Char(11)
   telefone  String   @db.VarChar(15)
@@ -33,13 +33,13 @@ model Tutor {
 }
 
 model Pet {
-  id             Int        @id @default(autoincrement())
+  id             String     @id @default(nanoid(20)) @db.VarChar(20)
   nome           String     @db.VarChar(100)
   especie        String     @db.VarChar(20)
   raca           String?    @db.VarChar(100)
   dataNascimento DateTime?  @map("data_nascimento") @db.Date
   peso           Decimal?   @db.Decimal(5, 2)
-  tutorId        Int        @map("tutor_id")
+  tutorId        String     @map("tutor_id") @db.VarChar(20)
   tutor          Tutor      @relation(fields: [tutorId], references: [id])
   consultas      Consulta[]
   criadoEm       DateTime   @default(now()) @map("criado_em")
@@ -48,13 +48,13 @@ model Pet {
 }
 
 model Consulta {
-  id          Int      @id @default(autoincrement())
+  id          String   @id @default(nanoid(20)) @db.VarChar(20)
   dataHora    DateTime @map("data_hora")
   motivo      String   @db.VarChar(255)
   diagnostico String?  @db.Text
   valor       Decimal  @db.Decimal(10, 2)
   status      String   @default("agendada") @db.VarChar(20)
-  petId       Int      @map("pet_id")
+  petId       String   @map("pet_id") @db.VarChar(20)
   pet         Pet      @relation(fields: [petId], references: [id])
   criadoEm    DateTime @default(now()) @map("criado_em")
 
