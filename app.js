@@ -7,8 +7,7 @@ import authRouter from "./routes/auth.js";
 import tutoresRouter from "./routes/tutores.js";
 import petsRouter from "./routes/pets.js";
 import consultasRouter from "./routes/consultas.js";
-import autenticar from "./utils/autenticar.js";
-import { versionMiddleware } from "./utils/index.js";
+import { tokenMiddleware, versionMiddleware } from "./utils/index.js";
 
 const app = express();
 
@@ -19,9 +18,9 @@ app.use(versionMiddleware);
 
 app.use("/", indexRouter);
 app.use("/auth", authRouter);
-app.use("/tutores", autenticar, tutoresRouter);
-app.use("/pets", autenticar, petsRouter);
-app.use("/consultas", autenticar, consultasRouter);
+app.use("/tutores", tokenMiddleware, tutoresRouter);
+app.use("/pets", tokenMiddleware, petsRouter);
+app.use("/consultas", tokenMiddleware, consultasRouter);
 
 // Rota inexistente
 app.use((req, res) => {

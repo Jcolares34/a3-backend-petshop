@@ -12,7 +12,7 @@ if (!tokenSecret) {
 }
 const secret = createSecretKey(tokenSecret, "utf-8");
 
-// Abre o token JWT e devolve o payload, ou rejeita com o motivo
+// Abre o token JWT e devolve o payload, ou rejeita com { codigo: "expirado" | "invalido" }
 const openTokenJWT = (jwt) => {
   return new Promise((resolve, reject) => {
     jwtVerify(jwt, secret, { algorithms: ["HS256"] })
@@ -21,9 +21,9 @@ const openTokenJWT = (jwt) => {
       })
       .catch((error) => {
         if (error.code == "ERR_JWT_EXPIRED") {
-          reject("Token de acesso expirado " + error.code);
+          reject({ codigo: "expirado" });
         } else {
-          reject("Token de acesso inválido " + error.code);
+          reject({ codigo: "invalido" });
         }
       });
   });
@@ -49,9 +49,28 @@ const createToken = async (data) => {
   return { jwt: jwt, jti: data.jti };
 };
 
+// Exige "Authorization: Bearer <token>": ausente ou inválido → 401, vencido → 498
+const tokenMiddleware = (req, res, next) => {
+  const [tipo, token] = (req.get("Authorization") || "").split(" ");
+  if (tipo !== "Bearer" || !token) {
+    return res.status(401).json({ erro: "Token ausente ou inválido" });
+  }
+  openTokenJWT(token)
+    .then((payload) => {
+      req.usuario = { id: payload.sub, email: payload.email, expiraEm: payload.exp };
+      next();
+    })
+    .catch((error) => {
+      if (error.codigo === "expirado") {
+        return res.status(498).json({ erro: "Token expirado" });
+      }
+      res.status(401).json({ erro: "Token ausente ou inválido" });
+    });
+};
+
 function versionMiddleware(req, res, next) {
   res.setHeader("X-API-Version", version);
   next();
 }
 
-export { validadeToken, createToken, openTokenJWT, versionMiddleware };
+export { validadeToken, createToken, openTokenJWT, tokenMiddleware, versionMiddleware };

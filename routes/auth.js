@@ -7,8 +7,7 @@ import {
 } from "firebase/auth";
 import { firebaseAuth } from "../tools/firebase.js";
 import prisma from "../utils/prisma.js";
-import { createToken, validadeToken } from "../utils/index.js";
-import autenticar from "../utils/autenticar.js";
+import { createToken, validadeToken, tokenMiddleware } from "../utils/index.js";
 
 const authRouter = express.Router();
 
@@ -97,7 +96,7 @@ authRouter.post("/login", async (req, res, next) => {
 });
 
 // Dados do usuário dono do token
-authRouter.get("/eu", autenticar, async (req, res, next) => {
+authRouter.get("/eu", tokenMiddleware, async (req, res, next) => {
   try {
     const usuario = await prisma.usuario.findUnique({
       where: { id: req.usuario.id },
