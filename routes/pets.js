@@ -1,7 +1,7 @@
 import express from "express";
 import prisma from "../utils/prisma.js";
 import { lerId, especies, validarPet } from "../utils/validacao.js";
-import { formatarConsulta, camposConsulta } from "./consultas.js";
+import { formatarConsulta, camposConsulta } from "../controllers/consultasController.js";
 
 const petsRouter = express.Router();
 
