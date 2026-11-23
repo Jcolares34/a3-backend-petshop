@@ -1,9 +1,17 @@
 import prisma from "../utils/prisma.js";
 import { lerId, validarTutor } from "../utils/validacao.js";
+import { montarUrl } from "../utils/links.js";
 import { formatarPet, camposPet } from "./petsController.js";
 
 // Campos devolvidos nas respostas
 const camposTutor = { id: true, nome: true, cpf: true, telefone: true, email: true, criadoEm: true };
+
+// Acrescenta as URLs do tutor e dos pets dele
+const formatarTutor = (tutor, req) => ({
+  ...tutor,
+  url: montarUrl(req, `/tutores/${tutor.id}`),
+  urlPets: montarUrl(req, `/tutores/${tutor.id}/pets`),
+});
 
 // Busca o tutor só se for do usuário do token
 const tutorDoUsuario = (id, usuarioId) =>
@@ -17,7 +25,7 @@ const listarTutores = async (req, res, next) => {
       where.nome = { contains: req.query.nome.trim(), mode: "insensitive" };
     }
     const tutores = await prisma.tutor.findMany({ where, select: camposTutor, orderBy: { nome: "asc" } });
-    res.json(tutores);
+    res.json(tutores.map((tutor) => formatarTutor(tutor, req)));
   } catch (error) {
     next(error);
   }
@@ -38,7 +46,7 @@ const criarTutor = async (req, res, next) => {
       data: { ...dados, usuarioId: req.usuario.id },
       select: camposTutor,
     });
-    res.status(201).json(tutor);
+    res.status(201).json(formatarTutor(tutor, req));
   } catch (error) {
     if (error.code === "P2002") return res.status(409).json({ erro: "CPF já cadastrado" });
     next(error);
@@ -52,7 +60,7 @@ const buscarTutor = async (req, res, next) => {
   try {
     const tutor = await tutorDoUsuario(id, req.usuario.id);
     if (!tutor) return res.status(404).json({ erro: "Tutor não encontrado" });
-    res.json(tutor);
+    res.json(formatarTutor(tutor, req));
   } catch (error) {
     next(error);
   }
@@ -84,7 +92,7 @@ const alterarTutor = async (req, res, next) => {
       return res.status(404).json({ erro: "Tutor não encontrado" });
     }
     const tutor = await prisma.tutor.update({ where: { id }, data: dados, select: camposTutor });
-    res.json(tutor);
+    res.json(formatarTutor(tutor, req));
   } catch (error) {
     if (error.code === "P2002") return res.status(409).json({ erro: "CPF já cadastrado" });
     next(error);
