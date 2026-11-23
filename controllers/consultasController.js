@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { lerId, ehId, lerData, statusConsulta, validarConsulta } from "../utils/validacao.js";
+import { montarUrl } from "../utils/links.js";
 
 // Campos devolvidos nas respostas
 const camposConsulta = {
@@ -11,10 +12,19 @@ const camposConsulta = {
   status: true,
   petId: true,
   criadoEm: true,
+  pet: { select: { id: true, nome: true } },
 };
 
-// Valor como número (o Prisma devolve Decimal como texto)
-const formatarConsulta = (consulta) => ({ ...consulta, valor: Number(consulta.valor) });
+// Valor como número (o Prisma devolve Decimal como texto) e as URLs da consulta e do pet
+const formatarConsulta = (consulta, req) => {
+  const { pet, ...dados } = consulta;
+  return {
+    ...dados,
+    valor: Number(consulta.valor),
+    url: montarUrl(req, `/consultas/${consulta.id}`),
+    pet: { ...pet, url: montarUrl(req, `/pets/${consulta.petId}`) },
+  };
+};
 
 // A consulta é do usuário quando o tutor do pet é do usuário
 const consultaDoUsuario = (id, usuarioId, select = camposConsulta) =>
@@ -57,7 +67,7 @@ const listarConsultas = async (req, res, next) => {
       select: camposConsulta,
       orderBy: { dataHora: "asc" },
     });
-    res.json(consultas.map(formatarConsulta));
+    res.json(consultas.map((consulta) => formatarConsulta(consulta, req)));
   } catch (error) {
     next(error);
   }
@@ -73,23 +83,20 @@ const criarConsulta = async (req, res, next) => {
       return res.status(404).json({ erro: "Pet não encontrado" });
     }
     const consulta = await prisma.consulta.create({ data: dados, select: camposConsulta });
-    res.status(201).json(formatarConsulta(consulta));
+    res.status(201).json(formatarConsulta(consulta, req));
   } catch (error) {
     next(error);
   }
 };
 
-// Busca uma consulta, com o nome do pet
+// Busca uma consulta
 const buscarConsulta = async (req, res, next) => {
   const id = lerId(req);
   if (id === null) return res.status(400).json({ erro: "id inválido" });
   try {
-    const consulta = await consultaDoUsuario(id, req.usuario.id, {
-      ...camposConsulta,
-      pet: { select: { id: true, nome: true } },
-    });
+    const consulta = await consultaDoUsuario(id, req.usuario.id);
     if (!consulta) return res.status(404).json({ erro: "Consulta não encontrada" });
-    res.json(formatarConsulta(consulta));
+    res.json(formatarConsulta(consulta, req));
   } catch (error) {
     next(error);
   }
@@ -111,7 +118,7 @@ const alterarConsulta = async (req, res, next) => {
       return res.status(404).json({ erro: "Pet não encontrado" });
     }
     const consulta = await prisma.consulta.update({ where: { id }, data: dados, select: camposConsulta });
-    res.json(formatarConsulta(consulta));
+    res.json(formatarConsulta(consulta, req));
   } catch (error) {
     next(error);
   }

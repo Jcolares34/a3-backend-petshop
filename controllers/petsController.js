@@ -101,7 +101,7 @@ const listarConsultasDoPet = async (req, res, next) => {
       select: camposConsulta,
       orderBy: { dataHora: "desc" },
     });
-    res.json(consultas.map(formatarConsulta));
+    res.json(consultas.map((consulta) => formatarConsulta(consulta, req)));
   } catch (error) {
     next(error);
   }
