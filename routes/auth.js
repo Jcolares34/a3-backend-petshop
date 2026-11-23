@@ -111,4 +111,15 @@ authRouter.get("/eu", tokenMiddleware, async (req, res, next) => {
   }
 });
 
+// Confere o token e diz quanto tempo falta para vencer
+authRouter.get("/token", tokenMiddleware, (req, res) => {
+  const { id, email, expiraEm } = req.usuario;
+  res.json({
+    valido: true,
+    usuario: { id, email },
+    expiraEm: Math.max(0, expiraEm - Math.floor(Date.now() / 1000)),
+    expiraEmData: new Date(expiraEm * 1000).toISOString(),
+  });
+});
+
 export default authRouter;
