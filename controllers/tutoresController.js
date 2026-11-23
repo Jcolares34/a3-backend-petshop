@@ -1,6 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { lerId, validarTutor } from "../utils/validacao.js";
-import { formatarPet, camposPet } from "../routes/pets.js";
+import { formatarPet, camposPet } from "./petsController.js";
 
 // Campos devolvidos nas respostas
 const camposTutor = { id: true, nome: true, cpf: true, telefone: true, email: true, criadoEm: true };
