@@ -7,15 +7,16 @@ import {
   alterarPet,
   excluirPet,
 } from "../controllers/petsController.js";
+import { capturar } from "../utils/erros.js";
 
 const petsRouter = express.Router();
 
-// Cada rota só chama o controller, que faz o trabalho
-petsRouter.get("/", listarPets);
-petsRouter.post("/", criarPet);
-petsRouter.get("/:id", buscarPet);
-petsRouter.get("/:id/consultas", listarConsultasDoPet);
-petsRouter.put("/:id", alterarPet);
-petsRouter.delete("/:id", excluirPet);
+// Cada rota só chama o controller; o capturar leva os erros ao tratador do app.js
+petsRouter.get("/", capturar(listarPets));
+petsRouter.post("/", capturar(criarPet));
+petsRouter.get("/:id", capturar(buscarPet));
+petsRouter.get("/:id/consultas", capturar(listarConsultasDoPet));
+petsRouter.put("/:id", capturar(alterarPet));
+petsRouter.delete("/:id", capturar(excluirPet));
 
 export default petsRouter;

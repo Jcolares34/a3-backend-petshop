@@ -1,20 +1,8 @@
-import prisma from "../utils/prisma.js";
-import { lerId, ehId, especies, validarPet } from "../utils/validacao.js";
+import * as petsService from "../services/petsService.js";
+import { ehId, especies, validarPet } from "../utils/validacao.js";
+import { ErroApi, validarOuFalhar, idOuFalhar } from "../utils/erros.js";
 import { montarUrl } from "../utils/links.js";
-import { formatarConsulta, camposConsulta } from "./consultasController.js";
-
-// Campos devolvidos nas respostas
-const camposPet = {
-  id: true,
-  nome: true,
-  especie: true,
-  raca: true,
-  dataNascimento: true,
-  peso: true,
-  tutorId: true,
-  criadoEm: true,
-  tutor: { select: { id: true, nome: true } },
-};
+import { formatarConsulta } from "./consultasController.js";
 
 // Peso como número, data de nascimento como AAAA-MM-DD e as URLs do pet, do tutor e das consultas
 const formatarPet = (pet, req) => {
@@ -29,129 +17,55 @@ const formatarPet = (pet, req) => {
   };
 };
 
-// O pet é do usuário quando o tutor dele é do usuário
-const petDoUsuario = (id, usuarioId, select = camposPet) =>
-  prisma.pet.findFirst({ where: { id, tutor: { usuarioId } }, select });
-
-const tutorDoUsuario = (tutorId, usuarioId) =>
-  prisma.tutor.findFirst({ where: { id: tutorId, usuarioId }, select: { id: true } });
-
 // Lista os pets do usuário, com filtros opcionais ?especie= e ?tutorId=
-const listarPets = async (req, res, next) => {
-  const where = { tutor: { usuarioId: req.usuario.id } };
+const listarPets = async (req, res) => {
   const { especie, tutorId } = req.query;
+  const filtros = {};
   if (especie !== undefined) {
     if (typeof especie !== "string" || !especies.includes(especie.trim().toLowerCase())) {
-      return res.status(400).json({ erro: `especie deve ser: ${especies.join(", ")}` });
+      throw new ErroApi(400, `especie deve ser: ${especies.join(", ")}`);
     }
-    where.especie = especie.trim().toLowerCase();
+    filtros.especie = especie.trim().toLowerCase();
   }
   if (tutorId !== undefined) {
-    if (!ehId(tutorId)) {
-      return res.status(400).json({ erro: "tutorId inválido (deve ter 20 caracteres)" });
-    }
-    where.tutorId = tutorId;
+    if (!ehId(tutorId)) throw new ErroApi(400, "tutorId inválido (deve ter 20 caracteres)");
+    filtros.tutorId = tutorId;
   }
-  try {
-    const pets = await prisma.pet.findMany({ where, select: camposPet, orderBy: { nome: "asc" } });
-    res.json(pets.map((pet) => formatarPet(pet, req)));
-  } catch (error) {
-    next(error);
-  }
+  const pets = await petsService.listar(req.usuario.id, filtros);
+  res.json(pets.map((pet) => formatarPet(pet, req)));
 };
 
 // Cria um pet para um tutor do usuário
-const criarPet = async (req, res, next) => {
-  const { erro, dados } = validarPet(req.body);
-  if (erro) return res.status(400).json({ erro });
-  try {
-    if (!(await tutorDoUsuario(dados.tutorId, req.usuario.id))) {
-      return res.status(404).json({ erro: "Tutor não encontrado" });
-    }
-    const pet = await prisma.pet.create({ data: dados, select: camposPet });
-    res.status(201).json(formatarPet(pet, req));
-  } catch (error) {
-    next(error);
-  }
+const criarPet = async (req, res) => {
+  const dados = validarOuFalhar(validarPet(req.body));
+  const pet = await petsService.criar(req.usuario.id, dados);
+  res.status(201).json(formatarPet(pet, req));
 };
 
 // Busca um pet
-const buscarPet = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  try {
-    const pet = await petDoUsuario(id, req.usuario.id);
-    if (!pet) return res.status(404).json({ erro: "Pet não encontrado" });
-    res.json(formatarPet(pet, req));
-  } catch (error) {
-    next(error);
-  }
+const buscarPet = async (req, res) => {
+  const pet = await petsService.buscar(req.usuario.id, idOuFalhar(req));
+  res.json(formatarPet(pet, req));
 };
 
-// Histórico de consultas do pet, da mais recente para a mais antiga
-const listarConsultasDoPet = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  try {
-    if (!(await petDoUsuario(id, req.usuario.id, { id: true }))) {
-      return res.status(404).json({ erro: "Pet não encontrado" });
-    }
-    const consultas = await prisma.consulta.findMany({
-      where: { petId: id },
-      select: camposConsulta,
-      orderBy: { dataHora: "desc" },
-    });
-    res.json(consultas.map((consulta) => formatarConsulta(consulta, req)));
-  } catch (error) {
-    next(error);
-  }
+// Histórico de consultas do pet
+const listarConsultasDoPet = async (req, res) => {
+  const consultas = await petsService.listarConsultas(req.usuario.id, idOuFalhar(req));
+  res.json(consultas.map((consulta) => formatarConsulta(consulta, req)));
 };
 
-// Altera só os campos enviados; o novo tutor também precisa ser do usuário
-const alterarPet = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  const { erro, dados } = validarPet(req.body, true);
-  if (erro) return res.status(400).json({ erro });
-  try {
-    if (!(await petDoUsuario(id, req.usuario.id, { id: true }))) {
-      return res.status(404).json({ erro: "Pet não encontrado" });
-    }
-    if (dados.tutorId && !(await tutorDoUsuario(dados.tutorId, req.usuario.id))) {
-      return res.status(404).json({ erro: "Tutor não encontrado" });
-    }
-    const pet = await prisma.pet.update({ where: { id }, data: dados, select: camposPet });
-    res.json(formatarPet(pet, req));
-  } catch (error) {
-    next(error);
-  }
+// Altera só os campos enviados
+const alterarPet = async (req, res) => {
+  const id = idOuFalhar(req);
+  const dados = validarOuFalhar(validarPet(req.body, true));
+  const pet = await petsService.alterar(req.usuario.id, id, dados);
+  res.json(formatarPet(pet, req));
 };
 
-// Exclui; bloqueia se o pet tiver consultas
-const excluirPet = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  try {
-    const pet = await petDoUsuario(id, req.usuario.id, { _count: { select: { consultas: true } } });
-    if (!pet) return res.status(404).json({ erro: "Pet não encontrado" });
-    if (pet._count.consultas > 0) {
-      return res.status(409).json({ erro: "Pet possui consultas cadastradas" });
-    }
-    await prisma.pet.delete({ where: { id } });
-    res.status(204).end();
-  } catch (error) {
-    if (error.code === "P2003") return res.status(409).json({ erro: "Pet possui consultas cadastradas" });
-    next(error);
-  }
+// Exclui; o service bloqueia se o pet tiver consultas
+const excluirPet = async (req, res) => {
+  await petsService.excluir(req.usuario.id, idOuFalhar(req));
+  res.status(204).end();
 };
 
-export {
-  listarPets,
-  criarPet,
-  buscarPet,
-  listarConsultasDoPet,
-  alterarPet,
-  excluirPet,
-  formatarPet,
-  camposPet,
-};
+export { listarPets, criarPet, buscarPet, listarConsultasDoPet, alterarPet, excluirPet, formatarPet };
