@@ -1,19 +1,7 @@
-import prisma from "../utils/prisma.js";
-import { lerId, ehId, lerData, statusConsulta, validarConsulta } from "../utils/validacao.js";
+import * as consultasService from "../services/consultasService.js";
+import { ehId, lerData, statusConsulta, validarConsulta } from "../utils/validacao.js";
+import { ErroApi, validarOuFalhar, idOuFalhar } from "../utils/erros.js";
 import { montarUrl } from "../utils/links.js";
-
-// Campos devolvidos nas respostas
-const camposConsulta = {
-  id: true,
-  dataHora: true,
-  motivo: true,
-  diagnostico: true,
-  valor: true,
-  status: true,
-  petId: true,
-  criadoEm: true,
-  pet: { select: { id: true, nome: true } },
-};
 
 // Valor como número (o Prisma devolve Decimal como texto) e as URLs da consulta e do pet
 const formatarConsulta = (consulta, req) => {
@@ -26,125 +14,53 @@ const formatarConsulta = (consulta, req) => {
   };
 };
 
-// A consulta é do usuário quando o tutor do pet é do usuário
-const consultaDoUsuario = (id, usuarioId, select = camposConsulta) =>
-  prisma.consulta.findFirst({ where: { id, pet: { tutor: { usuarioId } } }, select });
-
-const petDoUsuario = (petId, usuarioId) =>
-  prisma.pet.findFirst({ where: { id: petId, tutor: { usuarioId } }, select: { id: true } });
-
-// Regra de negócio: não dá para marcar "realizada" uma consulta que ainda não aconteceu
-const realizadaNoFuturo = (status, dataHora) => status === "realizada" && dataHora > new Date();
-const erroRealizada = { erro: "Uma consulta só pode ser marcada como realizada depois da data e hora dela" };
-
 // Lista as consultas do usuário, com filtros ?status=, ?petId= e ?data=AAAA-MM-DD
-const listarConsultas = async (req, res, next) => {
-  const where = { pet: { tutor: { usuarioId: req.usuario.id } } };
+const listarConsultas = async (req, res) => {
   const { status, petId, data } = req.query;
+  const filtros = {};
   if (status !== undefined) {
     if (typeof status !== "string" || !statusConsulta.includes(status.trim().toLowerCase())) {
-      return res.status(400).json({ erro: `status deve ser: ${statusConsulta.join(", ")}` });
+      throw new ErroApi(400, `status deve ser: ${statusConsulta.join(", ")}`);
     }
-    where.status = status.trim().toLowerCase();
+    filtros.status = status.trim().toLowerCase();
   }
   if (petId !== undefined) {
-    if (!ehId(petId)) {
-      return res.status(400).json({ erro: "petId inválido (deve ter 20 caracteres)" });
-    }
-    where.petId = petId;
+    if (!ehId(petId)) throw new ErroApi(400, "petId inválido (deve ter 20 caracteres)");
+    filtros.petId = petId;
   }
   if (data !== undefined) {
-    const dia = lerData(data);
-    if (!dia) return res.status(400).json({ erro: "data deve estar no formato AAAA-MM-DD" });
-    // O dia inteiro no horário de Brasília (UTC-3)
-    const inicio = new Date(`${dia}T00:00:00-03:00`);
-    const fim = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
-    where.dataHora = { gte: inicio, lt: fim };
+    filtros.data = lerData(data);
+    if (!filtros.data) throw new ErroApi(400, "data deve estar no formato AAAA-MM-DD");
   }
-  try {
-    const consultas = await prisma.consulta.findMany({
-      where,
-      select: camposConsulta,
-      orderBy: { dataHora: "asc" },
-    });
-    res.json(consultas.map((consulta) => formatarConsulta(consulta, req)));
-  } catch (error) {
-    next(error);
-  }
+  const consultas = await consultasService.listar(req.usuario.id, filtros);
+  res.json(consultas.map((consulta) => formatarConsulta(consulta, req)));
 };
 
 // Cria uma consulta para um pet do usuário
-const criarConsulta = async (req, res, next) => {
-  const { erro, dados } = validarConsulta(req.body);
-  if (erro) return res.status(400).json({ erro });
-  if (realizadaNoFuturo(dados.status, dados.dataHora)) return res.status(400).json(erroRealizada);
-  try {
-    if (!(await petDoUsuario(dados.petId, req.usuario.id))) {
-      return res.status(404).json({ erro: "Pet não encontrado" });
-    }
-    const consulta = await prisma.consulta.create({ data: dados, select: camposConsulta });
-    res.status(201).json(formatarConsulta(consulta, req));
-  } catch (error) {
-    next(error);
-  }
+const criarConsulta = async (req, res) => {
+  const dados = validarOuFalhar(validarConsulta(req.body));
+  const consulta = await consultasService.criar(req.usuario.id, dados);
+  res.status(201).json(formatarConsulta(consulta, req));
 };
 
 // Busca uma consulta
-const buscarConsulta = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  try {
-    const consulta = await consultaDoUsuario(id, req.usuario.id);
-    if (!consulta) return res.status(404).json({ erro: "Consulta não encontrada" });
-    res.json(formatarConsulta(consulta, req));
-  } catch (error) {
-    next(error);
-  }
+const buscarConsulta = async (req, res) => {
+  const consulta = await consultasService.buscar(req.usuario.id, idOuFalhar(req));
+  res.json(formatarConsulta(consulta, req));
 };
 
-// Altera só os campos enviados; a regra do "realizada" vale com os valores finais
-const alterarConsulta = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  const { erro, dados } = validarConsulta(req.body, true);
-  if (erro) return res.status(400).json({ erro });
-  try {
-    const atual = await consultaDoUsuario(id, req.usuario.id, { status: true, dataHora: true });
-    if (!atual) return res.status(404).json({ erro: "Consulta não encontrada" });
-    const status = dados.status ?? atual.status;
-    const dataHora = dados.dataHora ?? atual.dataHora;
-    if (realizadaNoFuturo(status, dataHora)) return res.status(400).json(erroRealizada);
-    if (dados.petId && !(await petDoUsuario(dados.petId, req.usuario.id))) {
-      return res.status(404).json({ erro: "Pet não encontrado" });
-    }
-    const consulta = await prisma.consulta.update({ where: { id }, data: dados, select: camposConsulta });
-    res.json(formatarConsulta(consulta, req));
-  } catch (error) {
-    next(error);
-  }
+// Altera só os campos enviados
+const alterarConsulta = async (req, res) => {
+  const id = idOuFalhar(req);
+  const dados = validarOuFalhar(validarConsulta(req.body, true));
+  const consulta = await consultasService.alterar(req.usuario.id, id, dados);
+  res.json(formatarConsulta(consulta, req));
 };
 
 // Exclui uma consulta
-const excluirConsulta = async (req, res, next) => {
-  const id = lerId(req);
-  if (id === null) return res.status(400).json({ erro: "id inválido" });
-  try {
-    if (!(await consultaDoUsuario(id, req.usuario.id, { id: true }))) {
-      return res.status(404).json({ erro: "Consulta não encontrada" });
-    }
-    await prisma.consulta.delete({ where: { id } });
-    res.status(204).end();
-  } catch (error) {
-    next(error);
-  }
+const excluirConsulta = async (req, res) => {
+  await consultasService.excluir(req.usuario.id, idOuFalhar(req));
+  res.status(204).end();
 };
 
-export {
-  listarConsultas,
-  criarConsulta,
-  buscarConsulta,
-  alterarConsulta,
-  excluirConsulta,
-  formatarConsulta,
-  camposConsulta,
-};
+export { listarConsultas, criarConsulta, buscarConsulta, alterarConsulta, excluirConsulta, formatarConsulta };

@@ -1,6 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { ErroApi } from "../utils/erros.js";
-import { camposConsulta } from "../controllers/consultasController.js";
+import { camposConsulta } from "./consultasService.js";
 
 // Campos devolvidos nas respostas, já com o tutor
 const camposPet = {
