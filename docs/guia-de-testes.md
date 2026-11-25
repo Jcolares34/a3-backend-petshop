@@ -1,8 +1,10 @@
 # Guia de testes: API REST de Petshop
 
-Testes manuais de todas as rotas, com o resultado esperado de cada um. Valem para a versão com as melhorias (Etapas 10 a 16): 498 para token vencido, `GET /auth/token`, ids de 20 caracteres e URLs nas respostas.
+Testes manuais de todas as rotas, com o resultado esperado de cada um. Valem para a versão com as melhorias (Etapas 10 a 21): 498 para token vencido, `GET /auth/token`, ids de 20 caracteres, URLs nas respostas e a divisão em camadas rota → controller → service.
 
-**Última execução completa:** 23/11/2026, em banco vazio: **87 de 87 testes ok**.
+**As respostas não mudaram com os services (Etapas 19 a 21):** os mesmos testes, com os mesmos status e mensagens, provam que a reorganização não quebrou nada.
+
+**Última execução completa:** 24/11/2026, em banco vazio: **87 de 87 testes ok**, mais os da seção 11.
 
 ---
 
@@ -177,11 +179,30 @@ Nesta ordem, com o token da clínica A:
 
 ---
 
-## 11. Checagem do repositório
+## 11. Erros e casos de borda (camada de services)
+
+| # | Teste | Esperado |
+|---|---|---|
+| 77 | `PUT /tutores/{MARCOS}` com o CPF de outro tutor seu | 409 `CPF já cadastrado` (vem do service) |
+| 78 | `PUT /pets/{NINA}` trocando o `tutorId` para outro tutor seu, e depois de volta | 200 nos dois |
+| 79 | `PUT /consultas/{id de uma consulta futura}` com `{"status":"realizada"}` | 400 (o service usa a data já salva) |
+| 80 | `PUT /consultas/{id}` com `"petId":"AAAAAAAAAAAAAAAAAAAA"` | 404 `Pet não encontrado` |
+| 81 | `POST /auth/cadastro` com `"email":"semarroba"` | 400 `E-mail inválido` (erro do Firebase traduzido no service) |
+| 82 | Parar o banco (`docker stop petshop_db`) e pedir `GET /tutores` | 500 `Erro interno no servidor` na hora (sem travar) e o erro aparece no console |
+| 83 | Com o banco parado, `POST /auth/cadastro` com um e-mail novo | 500, e depois o login desse e-mail dá 401: o service desfez o cadastro no Firebase |
+| 84 | Religar o banco (`docker start petshop_db`) e repetir o `GET /tutores` | 200 depois de uns 2 segundos, sem reiniciar a API |
+| 85 | Sem as chaves do Firebase (`apiKey=` vazio) | 503 `Firebase não configurado no .env` nas rotas `/auth` |
+
+Os ids `{MARCOS}` e `{NINA}` são da conta `gabi.teste` depois do seed.
+
+---
+
+## 12. Checagem do repositório
 
 ```
 git log --format='%an <%ae>' | sort -u     # só Gabriela e Julia
 git log --format=%B | grep -ci co-authored  # 0
 git ls-files | grep .env                    # só .env.example
-grep -rl prisma routes                      # nada (as rotas só chamam os controllers)
+grep -rl prisma routes controllers          # nada (só os services usam o Prisma)
+grep -c "try {" controllers/*.js           # 0 em todos (o capturar cuida dos erros)
 ```

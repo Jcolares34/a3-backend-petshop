@@ -157,15 +157,18 @@ Erros sempre no formato `{ "erro": "mensagem" }`.
 ## Estrutura do código
 
 ```
-app.js                  configura o Express e chama setRotas(app)
+app.js                  configura o Express, chama setRotas(app) e trata os erros
 bin/www                 liga o servidor na porta do .env
 routes/
   setup.js              setRotas(app): monta as rotas e coloca o tokenMiddleware nas de CRUD
-  auth.js, tutores.js,  cada rota só liga o caminho à função do controller
+  auth.js, tutores.js,  cada rota só liga o caminho ao controller: capturar(criarTutor)
   pets.js, consultas.js
-controllers/            "quem sabe fazer": validação, Prisma e resposta
+controllers/            o básico de HTTP: lê a requisição, valida o formato, chama o service e responde
+services/               a lógica: Prisma, se o dado é do usuário, CPF repetido, "realizada no futuro",
+                        bloqueio de exclusão, Firebase e JWT
 utils/
   index.js              JWT (createToken, openTokenJWT) e tokenMiddleware
+  erros.js              ErroApi (erro com código HTTP), capturar, validarOuFalhar, idOuFalhar
   validacao.js          regras dos campos e dos ids
   links.js              montarUrl(req, caminho)
   prisma.js             instância única do PrismaClient
@@ -174,7 +177,41 @@ prisma/                 schema, migrations e seed
 docs/                   guia de testes e consultas SQL úteis
 ```
 
-A estrutura segue a das aulas: a rota fica simples e **manda para quem sabe fazer** (o controller), e o `setup.js` monta tudo. Uma diferença consciente: no código da aula o token chega ao handler como primeiro parâmetro (`function(token, req, res, next)`, via `next(token)`), o que passa pelo caminho de **erro** do Express. Aqui o middleware guarda o dono do token em `req.usuario`, que é o jeito padrão.
+A estrutura segue a das aulas: a rota fica simples e **manda para quem sabe fazer**, e o `setup.js` monta tudo. Depois da apresentação, separamos o "quem sabe fazer" em duas camadas:
+
+```
+rota  →  controller  →  service  →  Prisma / Firebase
+```
+
+| Camada | Responsabilidade | Exemplo |
+|---|---|---|
+| `routes/` | liga o caminho à função | `tutoresRouter.post("/", capturar(criarTutor))` |
+| `controllers/` | lê `req`, valida o formato da entrada, chama o service e responde com o status e as URLs | `criarTutor` |
+| `services/` | regras de negócio e acesso ao banco; não conhece `req` nem `res` | `tutoresService.criar(usuarioId, dados)` |
+
+Quando uma regra falha, o service **lança** um erro com o código HTTP, por exemplo `throw new ErroApi(409, "CPF já cadastrado")`, e o tratador de erros do `app.js` responde `{ "erro": "CPF já cadastrado" }` com esse status. Erros que não são `ErroApi` viram 500 e aparecem no console.
+
+**Por que o `capturar`:** o Express 4 não repassa sozinho os erros de funções `async` para o tratador. O `capturar(fn)` faz isso e substitui os `try/catch` que antes se repetiam em cada função. O Express 5 já faz isso sozinho, mas trocar de versão seria uma mudança maior do que a necessária.
+
+Exemplo, criar tutor:
+
+```js
+// controllers/tutoresController.js
+const criarTutor = async (req, res) => {
+  const dados = validarOuFalhar(validarTutor(req.body));
+  const tutor = await tutoresService.criar(req.usuario.id, dados);
+  res.status(201).json(formatarTutor(tutor, req));
+};
+
+// services/tutoresService.js
+const criar = async (usuarioId, dados) => {
+  const repetido = await prisma.tutor.findFirst({ where: { usuarioId, cpf: dados.cpf }, select: { id: true } });
+  if (repetido) throw cpfRepetido();
+  ...
+};
+```
+
+Uma diferença consciente em relação à aula: no código do professor o token chega ao handler como primeiro parâmetro (`function(token, req, res, next)`, via `next(token)`), o que passa pelo caminho de **erro** do Express. Aqui o middleware guarda o dono do token em `req.usuario`, que é o jeito padrão.
 
 ## Banco de dados
 
@@ -215,3 +252,5 @@ Testes manuais (Thunder Client, Postman ou curl), descritos em [`docs/guia-de-te
 | D17 | Ids de 20 caracteres (`nanoid(20)`) em vez do autoincremento, com migration que converte os dados |
 | D18 | Id fora do formato → 400; no formato mas inexistente ou de outro usuário → 404 |
 | D19 | URLs absolutas nas respostas, montadas a partir da requisição |
+| D20 | Camadas rota → controller → service: o controller só cuida do HTTP e o service tem as regras e o Prisma |
+| D21 | Erros de regra como `ErroApi(status, mensagem)`, respondidos pelo tratador do `app.js`; `capturar` no lugar dos `try/catch` (mantido o Express 4) |
